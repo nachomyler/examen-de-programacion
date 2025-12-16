@@ -1,0 +1,140 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: skytrack-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: skytrack
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - skytrack-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: skytrack-auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/skytrack
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+  flights-service:
+    build:
+      context: ./services/flights-service
+      dockerfile: Dockerfile
+    container_name: skytrack-flights-service
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://mongodb:27017/skytrack
+      PLANES_SERVICE_URL: http://planes-service:3003
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+    depends_on:
+      - mongodb
+      - planes-service
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+  planes-service:
+    build:
+      context: ./services/planes-service
+      dockerfile: Dockerfile
+    container_name: skytrack-planes-service
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      MONGODB_URI: mongodb://mongodb:27017/skytrack
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+  crew-service:
+    build:
+      context: ./services/crew-service
+      dockerfile: Dockerfile
+    container_name: skytrack-crew-service
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      MONGODB_URI: mongodb://mongodb:27017/skytrack
+      FLIGHTS_SERVICE_URL: http://flights-service:3002
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+    depends_on:
+      - mongodb
+      - flights-service
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+  dashboard-service:
+    build:
+      context: ./services/dashboard-service
+      dockerfile: Dockerfile
+    container_name: skytrack-dashboard-service
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      MONGODB_URI: mongodb://mongodb:27017/skytrack
+      PLANES_SERVICE_URL: http://planes-service:3003
+    depends_on:
+      - mongodb
+      - planes-service
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: skytrack-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3001
+      FLIGHTS_SERVICE_URL: http://flights-service:3002
+      PLANES_SERVICE_URL: http://planes-service:3003
+      CREW_SERVICE_URL: http://crew-service:3004
+      DASHBOARD_SERVICE_URL: http://dashboard-service:3005
+    depends_on:
+      - auth-service
+      - flights-service
+      - planes-service
+      - crew-service
+      - dashboard-service
+    networks:
+      - skytrack-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+
+networks:
+  skytrack-network:
+    driver: bridge
+

@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            Int          @id @default(autoincrement())
+  email         String       @unique
+  password      String
+  name          String
+  role          String       @default("USUARIO")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  createdFlights Flight[]    @relation("FlightCreator")
+  takenFlights   UserFlight[]
+}
+
+model Plane {
+  id            Int      @id @default(autoincrement())
+  name          String
+  model         String
+  capacity      Int
+  status        String   @default("DISPONIBLE")
+  type          String   @default("ECONOMICO") // PRIVADO, ECONOMICO
+  airline       String   @default("SkyTrack Airlines")
+  serviceClass  String   @default("Económica 3-3")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  flights       Flight[]
+}
+
+model Flight {
+  id            Int          @id @default(autoincrement())
+  origin        String
+  destination   String
+  date          String
+  time          String
+  status        String       @default("PROGRAMADO")
+  planeId       Int
+  plane         Plane        @relation(fields: [planeId], references: [id], onDelete: Restrict)
+  crewMembers   CrewMember[]
+  deletedAt     DateTime?
+  createdBy     Int?         // ID del usuario que creó el vuelo (OPERADOR/ADMIN)
+  creator       User?        @relation("FlightCreator", fields: [createdBy], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  takenBy       UserFlight[]
+}
+
+model CrewMember {
+  id        Int      @id @default(autoincrement())
+  name      String
+  role      String
+  flightId  Int
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserFlight {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  flightId  Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, flightId])
+}
+

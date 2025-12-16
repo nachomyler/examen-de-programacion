@@ -578,5 +578,6 @@ Desarrollado como proyecto académico para SkyTrack Airlines.
 ---
 
 **Nota:** Este es un sistema de demostración. Para uso en producción, considere implementar medidas de seguridad adicionales, validaciones más estrictas y manejo de errores mejorado.
-#   e x a m e n - d e - p r o g r a m a c i o n  
+#   e x a m e n - d e - p r o g r a m a c i o n 
+ 
  

@@ -1,0 +1,592 @@
+import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { flightService } from '../services/api'
+import type { Flight, FlightStatus } from '../types'
+
+const Flights: React.FC = () => {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const [flights, setFlights] = useState<Flight[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({
+    origin: '',
+    destination: '',
+    status: '' as FlightStatus | ''
+  })
+  const [showCreateForm, setShowCreateForm] = useState(false)
+
+  useEffect(() => {
+    loadFlights()
+  }, [filters])
+
+  const loadFlights = async () => {
+    try {
+      setLoading(true)
+      const params: any = {}
+      if (filters.origin) params.origin = filters.origin
+      if (filters.destination) params.destination = filters.destination
+      if (filters.status) params.status = filters.status
+      
+      const data = await flightService.getAll(params)
+      // Filter out deleted flights and ensure we have valid data
+      setFlights(Array.isArray(data) ? data.filter(f => !f.deletedAt) : [])
+    } catch (error: any) {
+      console.error('Error loading flights:', error)
+      // Si es un error 401, el interceptor ya maneja la redirección
+      if (error.response?.status !== 401) {
+        // Set empty array on error instead of leaving undefined (except for auth errors)
+        setFlights([])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  if (loading) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando vuelos...</div>
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+      <header style={{
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+        color: 'white',
+        padding: '1.5rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+      }}>
+        <h1 style={{ margin: 0 }}>✈️ SkyTrack Airlines - Vuelos</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid white',
+              color: 'white',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Panel de Estado de Vuelos
+          </button>
+          <span>{user?.name}</span>
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid white',
+              color: 'white',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+      </header>
+
+      <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Filtros */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          marginBottom: '2rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>Filtros</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Origen</label>
+              <input
+                type="text"
+                value={filters.origin}
+                onChange={(e) => setFilters({ ...filters, origin: e.target.value })}
+                placeholder="Ej: MAD"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Destino</label>
+              <input
+                type="text"
+                value={filters.destination}
+                onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
+                placeholder="Ej: NYC"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Estado</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value as FlightStatus | '' })}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">Todos</option>
+                <option value="PROGRAMADO">Programado</option>
+                <option value="EMBARCANDO">Embarcando</option>
+                <option value="EN_VUELO">En Vuelo</option>
+                <option value="ATERRIZADO">Aterrizado</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button
+                onClick={() => setFilters({ origin: '', destination: '', status: '' })}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                Limpiar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Botón crear vuelo */}
+        {(user?.role === 'ADMIN' || user?.role === 'OPERADOR') && (
+          <div style={{ marginBottom: '1rem' }}>
+            <button
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              {showCreateForm ? 'Cancelar' : '+ Crear Nuevo Vuelo'}
+            </button>
+          </div>
+        )}
+
+        {/* Formulario crear vuelo */}
+        {showCreateForm && (user?.role === 'ADMIN' || user?.role === 'OPERADOR') && (
+          <FlightForm
+            onSuccess={() => {
+              setShowCreateForm(false)
+              loadFlights()
+            }}
+            onCancel={() => setShowCreateForm(false)}
+          />
+        )}
+
+        {flights.length === 0 ? (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '3rem',
+            textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <h2>No hay vuelos disponibles</h2>
+            <p style={{ color: '#666' }}>No se encontraron vuelos en el sistema.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {flights.map((flight) => (
+              <div key={flight.id} style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                    {flight.origin} → {flight.destination}
+                  </div>
+                  <div style={{ color: '#666' }}>
+                    Fecha: {flight.date} | Hora: {flight.time}
+                  </div>
+                  <div style={{ color: '#666', marginTop: '0.5rem' }}>
+                    Estado: <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      background: flight.status === 'EN_VUELO' ? '#10b981' :
+                                   flight.status === 'PROGRAMADO' ? '#3b82f6' :
+                                   flight.status === 'CANCELADO' ? '#ef4444' : '#f59e0b',
+                      color: 'white',
+                      fontSize: '0.875rem'
+                    }}>{flight.status}</span>
+                  </div>
+                  {flight.plane && (
+                    <div style={{ color: '#666', marginTop: '0.5rem' }}>
+                      Avión: {flight.plane.name} ({flight.plane.model})
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                  {(user?.role === 'ADMIN' || user?.role === 'OPERADOR') && (
+                    <button
+                      onClick={() => navigate(`/flights/${flight.id}/edit`)}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {user?.role === 'ADMIN' && (
+                    <button
+                      onClick={async () => {
+                        if (confirm('¿Está seguro de eliminar este vuelo?')) {
+                          try {
+                            await flightService.delete(flight.id)
+                            loadFlights()
+                          } catch (error) {
+                            alert('Error al eliminar vuelo')
+                          }
+                        }
+                      }}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                  <button
+                    onClick={() => navigate(`/flights/${flight.id}`)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: '#6b7280',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Ver Detalles
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Componente de formulario de vuelo (simplificado)
+const FlightForm: React.FC<{ onSuccess: () => void; onCancel: () => void }> = ({ onSuccess, onCancel }) => {
+  const [formData, setFormData] = useState({
+    origin: '',
+    destination: '',
+    date: '',
+    time: '',
+    planeId: '',
+    status: 'PROGRAMADO' as FlightStatus
+  })
+  const [planes, setPlanes] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const countries = [
+    'España',
+    'Estados Unidos',
+    'México',
+    'Argentina',
+    'Colombia',
+    'Chile',
+    'Perú',
+    'Brasil',
+    'Francia',
+    'Reino Unido',
+    'Alemania',
+    'Italia',
+    'Países Bajos',
+    'Bélgica',
+    'Suiza',
+    'Portugal',
+    'Grecia',
+    'Turquía',
+    'Emiratos Árabes Unidos',
+    'Qatar',
+    'Arabia Saudí',
+    'Japón',
+    'China',
+    'Corea del Sur',
+    'Singapur',
+    'Tailandia',
+    'India',
+    'Australia',
+    'Nueva Zelanda',
+    'Canadá',
+    'República Dominicana',
+    'Costa Rica',
+    'Panamá',
+    'Ecuador',
+    'Venezuela',
+    'Uruguay',
+    'Paraguay',
+    'Bolivia',
+    'Guatemala',
+    'Honduras',
+    'El Salvador',
+    'Nicaragua',
+    'Cuba',
+    'Jamaica',
+    'Trinidad y Tobago',
+    'Bahamas',
+    'Barbados',
+    'Rusia',
+    'Polonia',
+    'República Checa',
+    'Hungría',
+    'Rumania',
+    'Bulgaria',
+    'Croacia',
+    'Serbia',
+    'Eslovenia',
+    'Austria',
+    'Suecia',
+    'Noruega',
+    'Dinamarca',
+    'Finlandia',
+    'Irlanda',
+    'Islandia',
+    'Luxemburgo',
+    'Mónaco',
+    'Andorra',
+    'Malta',
+    'Chipre',
+    'Marruecos',
+    'Egipto',
+    'Sudáfrica',
+    'Kenia',
+    'Nigeria',
+    'Ghana',
+    'Senegal',
+    'Túnez',
+    'Argelia',
+    'Libia',
+    'Etiopía',
+    'Tanzania',
+    'Uganda',
+    'Ruanda',
+    'Mauricio',
+    'Seychelles',
+    'Madagascar',
+    'Mozambique',
+    'Angola',
+    'Zambia',
+    'Zimbabue',
+    'Botsuana',
+    'Namibia'
+  ]
+
+  useEffect(() => {
+    loadPlanes()
+  }, [])
+
+  const loadPlanes = async () => {
+    try {
+      const { planeService } = await import('../services/api')
+      const data = await planeService.getAll()
+      setPlanes(data.filter(p => p.status === 'DISPONIBLE'))
+    } catch (error) {
+      console.error('Error loading planes:', error)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await flightService.create({
+        ...formData,
+        planeId: formData.planeId
+      })
+      onSuccess()
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Error al crear vuelo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: '12px',
+      padding: '2rem',
+      marginBottom: '2rem',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+    }}>
+      <h2 style={{ marginTop: 0 }}>Crear Nuevo Vuelo</h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Origen *</label>
+            <input
+              type="text"
+              list="countries-origin"
+              required
+              value={formData.origin}
+              onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+              placeholder="Selecciona o escribe un país"
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            />
+            <datalist id="countries-origin">
+              {countries.map((country) => (
+                <option key={country} value={country} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Destino *</label>
+            <input
+              type="text"
+              list="countries-destination"
+              required
+              value={formData.destination}
+              onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+              placeholder="Selecciona o escribe un país"
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            />
+            <datalist id="countries-destination">
+              {countries.map((country) => (
+                <option key={country} value={country} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Fecha *</label>
+            <input
+              type="date"
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Hora *</label>
+            <input
+              type="time"
+              required
+              value={formData.time}
+              onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Avión *</label>
+            <select
+              required
+              value={formData.planeId}
+              onChange={(e) => setFormData({ ...formData, planeId: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            >
+              <option value="">Seleccionar avión</option>
+              {planes.map(plane => (
+                <option key={plane.id} value={plane.id}>
+                  {plane.name} - {plane.model} (Capacidad: {plane.capacity})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Estado</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as FlightStatus })}
+              style={{ width: '100%', padding: '0.5rem', border: '2px solid #e5e7eb', borderRadius: '8px', boxSizing: 'border-box' }}
+            >
+              <option value="PROGRAMADO">Programado</option>
+              <option value="EMBARCANDO">Embarcando</option>
+              <option value="EN_VUELO">En Vuelo</option>
+              <option value="ATERRIZADO">Aterrizado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: loading ? '#9ca3af' : '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            {loading ? 'Creando...' : 'Crear Vuelo'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: '#6b7280',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+export default Flights
