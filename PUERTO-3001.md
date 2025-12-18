@@ -75,3 +75,8 @@ tasklist | findstr <PID>
 
 Si estás desarrollando, usa **Docker Compose** para mantener todos los servicios sincronizados y evitar conflictos de puertos. Solo ejecuta servicios localmente si necesitas debuggear un servicio específico.
 
+
+
+
+
+

@@ -124,3 +124,8 @@ curl http://localhost:3000/api/health
 - El token JWT expira después de 24 horas
 - Todos los servicios comparten el mismo `JWT_SECRET` configurado en `docker-compose.yml`
 
+
+
+
+
+

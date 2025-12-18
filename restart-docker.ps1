@@ -28,3 +28,8 @@ Write-Host ""
 Write-Host "Timeout: Docker Desktop puede estar tardando más de lo esperado." -ForegroundColor Yellow
 Write-Host "Por favor, espera unos segundos más y verifica manualmente con 'docker ps'" -ForegroundColor Yellow
 
+
+
+
+
+

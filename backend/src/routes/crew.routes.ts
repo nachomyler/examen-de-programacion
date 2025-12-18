@@ -16,3 +16,8 @@ router.delete('/:id', authenticate, requireRole(UserRole.OPERADOR, UserRole.ADMI
 export default router;
 
 
+
+
+
+
+

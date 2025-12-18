@@ -58,3 +58,8 @@ Write-Host "Para poblar datos iniciales:" -ForegroundColor Yellow
 Write-Host "  cd services/auth-service && npm run seed" -ForegroundColor White
 Write-Host "  cd services/planes-service && npm run seed" -ForegroundColor White
 
+
+
+
+
+

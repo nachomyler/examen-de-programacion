@@ -340,3 +340,8 @@ Si sigues estos pasos, deberías tener la aplicación funcionando correctamente.
 
 **Última actualización:** Diciembre 2024
 
+
+
+
+
+

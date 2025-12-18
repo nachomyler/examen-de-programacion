@@ -41,3 +41,8 @@ if ($mongoStatus -match "healthy|Up") {
 Write-Host ""
 Write-Host "=== Verificación completada ===" -ForegroundColor Cyan
 
+
+
+
+
+
