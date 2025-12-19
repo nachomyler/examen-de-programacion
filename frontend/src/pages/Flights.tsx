@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { flightService } from '../services/api'
+import { flightService, userFlightService } from '../services/api'
 import type { Flight, FlightStatus } from '../types'
 
 const Flights: React.FC = () => {
@@ -9,24 +9,192 @@ const Flights: React.FC = () => {
   const navigate = useNavigate()
   const [flights, setFlights] = useState<Flight[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFiltering, setIsFiltering] = useState(false)
+  const [takenFlights, setTakenFlights] = useState<Set<string>>(new Set())
+  const [processingFlight, setProcessingFlight] = useState<string | null>(null)
   const [filters, setFilters] = useState({
     origin: '',
     destination: '',
     status: '' as FlightStatus | ''
   })
+  const [debouncedFilters, setDebouncedFilters] = useState({
+    origin: '',
+    destination: '',
+    status: '' as FlightStatus | ''
+  })
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isInitialLoadRef = useRef(true)
 
+  // Lista de países disponibles para filtros y formularios
+  const countries = [
+    'España',
+    'Estados Unidos',
+    'México',
+    'Argentina',
+    'Colombia',
+    'Chile',
+    'Perú',
+    'Brasil',
+    'Francia',
+    'Reino Unido',
+    'Alemania',
+    'Italia',
+    'Países Bajos',
+    'Bélgica',
+    'Suiza',
+    'Portugal',
+    'Grecia',
+    'Turquía',
+    'Emiratos Árabes Unidos',
+    'Qatar',
+    'Arabia Saudí',
+    'Japón',
+    'China',
+    'Corea del Sur',
+    'Singapur',
+    'Tailandia',
+    'India',
+    'Australia',
+    'Nueva Zelanda',
+    'Canadá',
+    'República Dominicana',
+    'Costa Rica',
+    'Panamá',
+    'Ecuador',
+    'Venezuela',
+    'Uruguay',
+    'Paraguay',
+    'Bolivia',
+    'Guatemala',
+    'Honduras',
+    'El Salvador',
+    'Nicaragua',
+    'Cuba',
+    'Jamaica',
+    'Trinidad y Tobago',
+    'Bahamas',
+    'Barbados',
+    'Rusia',
+    'Polonia',
+    'República Checa',
+    'Hungría',
+    'Rumania',
+    'Bulgaria',
+    'Croacia',
+    'Serbia',
+    'Eslovenia',
+    'Austria',
+    'Suecia',
+    'Noruega',
+    'Dinamarca',
+    'Finlandia',
+    'Irlanda',
+    'Islandia',
+    'Luxemburgo',
+    'Mónaco',
+    'Andorra',
+    'Malta',
+    'Chipre',
+    'Marruecos',
+    'Egipto',
+    'Sudáfrica',
+    'Kenia',
+    'Nigeria',
+    'Ghana',
+    'Senegal',
+    'Túnez',
+    'Argelia',
+    'Libia',
+    'Etiopía',
+    'Tanzania',
+    'Uganda',
+    'Ruanda',
+    'Mauricio',
+    'Seychelles',
+    'Madagascar',
+    'Mozambique',
+    'Angola',
+    'Zambia',
+    'Zimbabue',
+    'Botsuana',
+    'Namibia'
+  ]
+
+  // Debounce para los filtros de texto (origen y destino)
+  useEffect(() => {
+    // Limpiar timeout anterior si existe
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+
+    // Si es la carga inicial, aplicar inmediatamente
+    if (isInitialLoadRef.current) {
+      setDebouncedFilters(filters)
+      isInitialLoadRef.current = false
+      return
+    }
+
+    // Para cambios de origen o destino, usar debounce de 500ms
+    const hasTextFilterChanged = filters.origin !== debouncedFilters.origin || filters.destination !== debouncedFilters.destination
+    const hasStatusChanged = filters.status !== debouncedFilters.status
+
+    if (hasTextFilterChanged) {
+      setIsFiltering(true)
+      debounceTimeoutRef.current = setTimeout(() => {
+        setDebouncedFilters(prev => ({
+          ...prev,
+          origin: filters.origin,
+          destination: filters.destination
+        }))
+        setIsFiltering(false)
+      }, 500)
+    } else if (hasStatusChanged) {
+      // Para cambios de estado, aplicar inmediatamente sin debounce
+      setDebouncedFilters(prev => ({
+        ...prev,
+        status: filters.status
+      }))
+    }
+
+    // Cleanup
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [filters.origin, filters.destination, filters.status])
+
+  // Cargar vuelos cuando cambien los filtros con debounce
   useEffect(() => {
     loadFlights()
-  }, [filters])
+  }, [debouncedFilters.origin, debouncedFilters.destination, debouncedFilters.status])
 
-  const loadFlights = async () => {
+  useEffect(() => {
+    if (user?.role === 'USUARIO') {
+      loadTakenFlights()
+    }
+  }, [user])
+
+  const loadFlights = useCallback(async () => {
     try {
-      setLoading(true)
+      // Solo mostrar loading en la carga inicial (cuando no hay vuelos cargados)
+      const isInitialLoad = isInitialLoadRef.current
+      if (isInitialLoad) {
+        setLoading(true)
+      }
+      
       const params: any = {}
-      if (filters.origin) params.origin = filters.origin
-      if (filters.destination) params.destination = filters.destination
-      if (filters.status) params.status = filters.status
+      // Solo agregar parámetros si tienen valor (no están vacíos)
+      if (debouncedFilters.origin && debouncedFilters.origin.trim() !== '') {
+        params.origin = debouncedFilters.origin.trim()
+      }
+      if (debouncedFilters.destination && debouncedFilters.destination.trim() !== '') {
+        params.destination = debouncedFilters.destination.trim()
+      }
+      if (debouncedFilters.status) {
+        params.status = debouncedFilters.status
+      }
       
       const data = await flightService.getAll(params)
       // Filter out deleted flights and ensure we have valid data
@@ -40,6 +208,57 @@ const Flights: React.FC = () => {
       }
     } finally {
       setLoading(false)
+      setIsFiltering(false)
+    }
+  }, [debouncedFilters.origin, debouncedFilters.destination, debouncedFilters.status])
+
+  const loadTakenFlights = async () => {
+    try {
+      const myFlights = await userFlightService.getMyFlights()
+      const takenIds = new Set(myFlights.map(f => String(f.id)))
+      setTakenFlights(takenIds)
+    } catch (error) {
+      console.error('Error loading taken flights:', error)
+    }
+  }
+
+  const handleTakeFlight = async (flightId: string) => {
+    if (processingFlight) return
+    
+    setProcessingFlight(flightId)
+    try {
+      await userFlightService.takeFlight(flightId)
+      setTakenFlights(prev => new Set(prev).add(flightId))
+      alert('✅ Vuelo tomado correctamente')
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Error al tomar el vuelo'
+      alert(`❌ ${message}`)
+    } finally {
+      setProcessingFlight(null)
+    }
+  }
+
+  const handleReleaseFlight = async (flightId: string) => {
+    if (processingFlight) return
+    
+    if (!confirm('¿Estás seguro de cancelar este vuelo?')) {
+      return
+    }
+    
+    setProcessingFlight(flightId)
+    try {
+      await userFlightService.releaseFlight(flightId)
+      setTakenFlights(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(flightId)
+        return newSet
+      })
+      alert('✅ Vuelo cancelado correctamente')
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Error al cancelar el vuelo'
+      alert(`❌ ${message}`)
+    } finally {
+      setProcessingFlight(null)
     }
   }
 
@@ -48,7 +267,7 @@ const Flights: React.FC = () => {
     navigate('/login')
   }
 
-  if (loading) {
+  if (loading && flights.length === 0) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando vuelos...</div>
   }
 
@@ -102,17 +321,41 @@ const Flights: React.FC = () => {
           borderRadius: '12px',
           padding: '1.5rem',
           marginBottom: '2rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          position: 'relative'
         }}>
-          <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>Filtros</h2>
+          <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>
+            Filtros
+            {isFiltering && (
+              <span style={{
+                marginLeft: '1rem',
+                fontSize: '0.875rem',
+                color: '#3b82f6',
+                fontWeight: 'normal'
+              }}>
+                Filtrando...
+              </span>
+            )}
+          </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Origen</label>
               <input
                 type="text"
+                list="filter-countries-origin"
                 value={filters.origin}
-                onChange={(e) => setFilters({ ...filters, origin: e.target.value })}
-                placeholder="Ej: MAD"
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFilters(prev => ({ ...prev, origin: value }))
+                }}
+                onBlur={(e) => {
+                  // Asegurar que el valor se actualiza cuando se pierde el foco
+                  const value = e.target.value.trim()
+                  if (value !== filters.origin) {
+                    setFilters(prev => ({ ...prev, origin: value }))
+                  }
+                }}
+                placeholder="Selecciona o escribe un país"
                 style={{
                   width: '100%',
                   padding: '0.5rem',
@@ -121,14 +364,30 @@ const Flights: React.FC = () => {
                   boxSizing: 'border-box'
                 }}
               />
+              <datalist id="filter-countries-origin">
+                {countries.map((country) => (
+                  <option key={country} value={country} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Destino</label>
               <input
                 type="text"
+                list="filter-countries-destination"
                 value={filters.destination}
-                onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
-                placeholder="Ej: NYC"
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFilters(prev => ({ ...prev, destination: value }))
+                }}
+                onBlur={(e) => {
+                  // Asegurar que el valor se actualiza cuando se pierde el foco
+                  const value = e.target.value.trim()
+                  if (value !== filters.destination) {
+                    setFilters(prev => ({ ...prev, destination: value }))
+                  }
+                }}
+                placeholder="Selecciona o escribe un país"
                 style={{
                   width: '100%',
                   padding: '0.5rem',
@@ -137,6 +396,11 @@ const Flights: React.FC = () => {
                   boxSizing: 'border-box'
                 }}
               />
+              <datalist id="filter-countries-destination">
+                {countries.map((country) => (
+                  <option key={country} value={country} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Estado</label>
@@ -232,9 +496,21 @@ const Flights: React.FC = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {flight.origin} → {flight.destination}
+                    {user?.role === 'USUARIO' && takenFlights.has(String(flight.id)) && (
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        background: '#10b981',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold'
+                      }}>
+                        ✓ TOMADO
+                      </span>
+                    )}
                   </div>
                   <div style={{ color: '#666' }}>
                     Fecha: {flight.date} | Hora: {flight.time}
@@ -256,46 +532,107 @@ const Flights: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', minWidth: '150px' }}>
+                  {/* Botones para Admin/Operador */}
                   {(user?.role === 'ADMIN' || user?.role === 'OPERADOR') && (
-                    <button
-                      onClick={() => navigate(`/flights/${flight.id}/edit`)}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Editar
-                    </button>
+                    <>
+                      <button
+                        onClick={() => navigate(`/flights/${flight.id}/edit`)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        Editar
+                      </button>
+                      {user?.role === 'ADMIN' && (
+                        <button
+                          onClick={async () => {
+                            if (confirm('¿Está seguro de eliminar este vuelo?')) {
+                              try {
+                                await flightService.delete(flight.id)
+                                loadFlights()
+                              } catch (error) {
+                                alert('Error al eliminar vuelo')
+                              }
+                            }
+                          }}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </>
                   )}
-                  {user?.role === 'ADMIN' && (
-                    <button
-                      onClick={async () => {
-                        if (confirm('¿Está seguro de eliminar este vuelo?')) {
-                          try {
-                            await flightService.delete(flight.id)
-                            loadFlights()
-                          } catch (error) {
-                            alert('Error al eliminar vuelo')
-                          }
-                        }
-                      }}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        background: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Eliminar
-                    </button>
+                  
+                  {/* Botones para Usuarios - Tomar/Cancelar Vuelo */}
+                  {user?.role === 'USUARIO' && (
+                    <>
+                      {takenFlights.has(String(flight.id)) ? (
+                        <button
+                          onClick={() => handleReleaseFlight(flight.id)}
+                          disabled={processingFlight === flight.id}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: processingFlight === flight.id ? '#9ca3af' : '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: processingFlight === flight.id ? 'not-allowed' : 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {processingFlight === flight.id ? 'Cancelando...' : '❌ Cancelar Vuelo'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTakeFlight(flight.id)}
+                          disabled={processingFlight === flight.id}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: processingFlight === flight.id ? '#9ca3af' : '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: processingFlight === flight.id ? 'not-allowed' : 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {processingFlight === flight.id ? 'Tomando...' : '✈️ Tomar Vuelo'}
+                        </button>
+                      )}
+                      {takenFlights.has(String(flight.id)) && (
+                        <div style={{
+                          padding: '0.25rem 0.5rem',
+                          background: '#dbeafe',
+                          color: '#1e40af',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold',
+                          textAlign: 'center'
+                        }}>
+                          ✓ TOMADO
+                        </div>
+                      )}
+                    </>
                   )}
+                  
+                  {/* Botón Ver Detalles (todos los usuarios) */}
                   <button
                     onClick={() => navigate(`/flights/${flight.id}`)}
                     style={{
@@ -304,7 +641,8 @@ const Flights: React.FC = () => {
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      fontSize: '0.875rem'
                     }}
                   >
                     Ver Detalles

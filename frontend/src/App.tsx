@@ -5,6 +5,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Flights from './pages/Flights'
+import FlightDetails from './pages/FlightDetails'
+import EditFlight from './pages/EditFlight'
 import PlaneManagement from './pages/PlaneManagement'
 
 function App() {
@@ -27,6 +29,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <Flights />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/flights/:id"
+            element={
+              <ProtectedRoute>
+                <FlightDetails />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/flights/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditFlight />
               </ProtectedRoute>
             }
           />

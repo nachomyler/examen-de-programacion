@@ -1,0 +1,39 @@
+{
+  "recommendations": [
+    // TypeScript & JavaScript
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    
+    // React
+    "dsznajder.es7-react-js-snippets",
+    "formulahendry.auto-rename-tag",
+    
+    // Prisma
+    "prisma.prisma",
+    
+    // Git
+    "eamodio.gitlens",
+    
+    // General
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    
+    // Terminal (Multiplataforma)
+    "ms-vscode.powershell",
+    
+    // Debugging
+    "msjsdiag.debugger-for-chrome",
+    "ms-edgedevtools.vscode-edge-devtools",
+    
+    // Productivity
+    "usernamehw.errorlens",
+    "streetsidesoftware.code-spell-checker",
+    "christian-kohler.path-intellisense",
+    "formulahendry.auto-close-tag",
+    
+    // Docker (opcional, para microservicios)
+    "ms-azuretools.vscode-docker"
+  ],
+  "unwantedRecommendations": []
+}
